@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SvperMe — seu corpo, sua evidência</title>
+<style>
+  :root{--bg:#0A0A0F;--card:#12121A;--bd:#1E1E2A;--tx:#E8E8ED;--dim:#8888A0;--ac:#00D68F;--warn:#FFB800}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--tx);line-height:1.5}
+  .wrap{max-width:760px;margin:auto;padding:24px}
+  h1{font-size:28px;margin-bottom:4px}.dim{color:var(--dim)}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin:12px 0}
+  .plan{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .price{color:var(--ac);font-weight:700}
+  button{background:var(--ac);color:#062;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer}
+  button.ghost{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+  .tabs{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+  .tab{padding:8px 14px;border:1px solid var(--bd);border-radius:999px;cursor:pointer}
+  .tab.active{background:var(--ac);color:#062;border-color:var(--ac)}
+  .hidden{display:none}
+  .warn{background:rgba(255,184,0,.12);border:1px solid var(--warn);border-radius:8px;padding:8px}
+  input,select{background:#0c0c12;border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:8px;width:100%}
+</style>
+</head>
+<body>
+<div style="background:linear-gradient(90deg,#065f46,#047857);color:#ecfdf5;padding:8px 16px;font-family:system-ui,sans-serif;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #10b981;">
+      <span>🧬 <b>SvperMe Publicação Gratuita (R$ 0/mês)</b> — GitHub Pages + Motor Ao Vivo MSI</span>
+      <span><a href="https://learned-sales-simpson-analysts.trycloudflare.com/svperme/app" style="color:#a7f3d0;font-weight:700;text-decoration:underline;">Abrir Direto no Túnel Ao Vivo (https://learned-sales-simpson-analysts.trycloudflare.com) &rarr;</a></span>
+    </div>
+<div class="wrap">
+  <h1>SvperMe</h1>
+  <p class="dim">Organize seus suplementos, exames e dúvidas — conteúdo educativo, não substitui seu médico.</p>
+
+  <!-- TELA DE PLANOS (gate) -->
+  <section id="gate">
+    <div class="card"><h2>Planos</h2><div id="plans" class="dim">carregando…</div></div>
+    <div class="card">
+      <label class="dim" for="email">Email</label>
+      <input id="email" autocomplete="email" type="email" placeholder="voce@exemplo.com" />
+      <label class="dim" for="password" style="display:block;margin-top:10px">Senha</label>
+      <input id="password" autocomplete="current-password" type="password" placeholder="minimo 6 caracteres" />
+      <p style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="login()">Entrar</button>
+        <button class="ghost" onclick="register()">Criar conta</button>
+      </p>
+      <p id="authStatus" class="dim" style="margin-top:8px"></p>
+    </div>
+  </section>
+
+  <!-- ÁREA INTERNA (logada) -->
+  <section id="home" class="hidden">
+    <div class="card">
+      <b id="who"></b> · plano <b id="plan"></b>
+      <button class="ghost" style="float:right" onclick="sair()">sair</button>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="panel" class="card">selecione uma aba</div>
+  </section>
+</div>
+
+<script>
+const API = new URLSearchParams(location.search).get("api") || window.location.origin;
+let UID = localStorage.getItem("svperme_user_id") || "";
+let SESSION = localStorage.getItem("svperme_session") || "";
+const TAB_LABELS = {armario:"Armário", farmacia:"Farmácia", dossie:"Dossiê", rotina:"Rotina"};
+const $ = id => document.getElementById(id);
+function authHeaders(extra={}){
+  const h = {...extra};
+  if(SESSION) h.Authorization = `Bearer ${SESSION}`;
+  if(UID) h["x-user-id"] = UID;
+  return h;
+}
+function setAuth(d){
+  UID = d.user_id || "";
+  SESSION = d.session || "";
+  localStorage.setItem("svperme_user_id", UID);
+  localStorage.setItem("svperme_session", SESSION);
+}
+
+async function loadPlans(){
+  try{
+    const r = await fetch(`${API}/api/v1/plans?country=US`);
+    const d = await r.json();
+    $("plans").innerHTML = d.plans.map(p=>
+      `<div class="plan"><span>${p.name} <span class="dim">${p.questions_per_day??'∞'} perguntas/dia</span></span>
+       <span class="price">${p.price?('$'+p.price+'/'+p.period):'grátis'}</span></div>`).join("");
+  }catch(e){ $("plans").textContent = "API offline — suba o Service em :18711"; }
+}
+async function submitAuth(path){
+  $("authStatus").textContent = "";
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  const r = await fetch(`${API}${path}`,{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({email,password})
+  });
+  if(!r.ok){
+    $("authStatus").textContent = path.endsWith("/login") ? "Credenciais inválidas." : "Não foi possível criar a conta.";
+    return;
+  }
+  setAuth(await r.json());
+  await loadHome();
+}
+async function register(){ await submitAuth("/api/v1/auth/register"); }
+async function login(){ await submitAuth("/api/v1/auth/login"); }
+async function loadHome(){
+  const r = await fetch(`${API}/svperme/me/home`,{headers:authHeaders()});
+  if(!r.ok){ $("authStatus").textContent = "Sessão expirada. Entre novamente."; sair(); return; }
+  const d = await r.json();
+  $("who").textContent = d.user_id; $("plan").textContent = d.plan;
+  $("tabs").innerHTML = d.tabs.map(t=>`<div class="tab" onclick="openTab('${t}',this)">${TAB_LABELS[t] || t}</div>`).join("");
+  $("gate").classList.add("hidden"); $("home").classList.remove("hidden");
+}
+function sair(){
+  UID = ""; SESSION = "";
+  localStorage.removeItem("svperme_user_id");
+  localStorage.removeItem("svperme_session");
+  $("home").classList.add("hidden"); $("gate").classList.remove("hidden");
+}
+async function openTab(t,el){
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active")); el.classList.add("active");
+  const p = $("panel");
+  if(t==="armario"||t==="farmacia"){
+    const r = await fetch(`${API}/api/v1/me/${t}`,{headers:authHeaders()});
+    const d = await r.json();
+    if(t==="farmacia" && d.enabled===false){ p.innerHTML="<p class='dim'>Farmácia indisponível.</p>"; return; }
+    const items=(d.items||[]).map(i=>`<li>${i.name} <span class="dim">(${i.kind})</span></li>`).join("")||"<li class='dim'>vazio</li>";
+    p.innerHTML=`<h3>${TAB_LABELS[t] || t}</h3><ul>${items}</ul>`;
+  } else if(t==="dossie"){
+    const r = await fetch(`${API}/api/v1/me/dossie`,{method:"POST",headers:authHeaders({"content-type":"application/json"}),
+      body:JSON.stringify({goal:"longevidade",armario:[],farmacia_meds:[],candidates:["vitamin_d3","omega_3"]})});
+    const d = await r.json();
+    const warn = d.seguranca?.escalonamento?`<div class="warn">⚠ ${d.seguranca.mensagem}</div>`:"";
+    p.innerHTML=`<h3>Dossiê</h3>${warn}<p class="dim">${d.disclaimer}</p>`;
+  } else if(t==="rotina"){
+    const r = await fetch(`${API}/api/v1/me/routine`,{method:"POST",headers:authHeaders({"content-type":"application/json"}),
+      body:JSON.stringify({items:["vitamin_d3","vitamin_k2","dsip"]})});
+    const d = await r.json();
+    p.innerHTML="<h3>Rotina</h3><ul>"+d.schedule.map(s=>`<li>${s.time} — ${s.label} <span class="dim">${s.note||''}</span></li>`).join("")+"</ul>";
+  }
+}
+loadPlans();
+if(SESSION) loadHome();
+</script>
+</body>
+</html>
